@@ -115,13 +115,15 @@ if __name__ == '__main__':
     t_values, waveform, sr, metadata = generate_waveform(
         sample_rate, A1, A2, rise1, fall1, rise2, fall2, T, offset, 0, 1234, "biphasic", "positive_then_negative"
     )
+
+    # Comment out the ''' markers to show python generated plot
     '''
     # --- Plotting with Matplotlib ---
     plt.figure(figsize=(10, 5))
-    plt.plot(t_values, waveform, label='Fully Asymmetric Wave', color='forestgreen', linewidth=2)
+    plt.plot(t_values, waveform, color='forestgreen', linewidth=2)
 
     # Styling and labels
-    plt.title('Biphasic Waveform with Independent Rise & Fall Times', fontsize=13, fontweight='bold')
+    plt.title('Waveform', fontsize=13, fontweight='bold')
     plt.xlabel('Time (t)', fontsize=12)
     plt.ylabel('Amplitude', fontsize=12)
     plt.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)  # Baseline reference
@@ -134,4 +136,4 @@ if __name__ == '__main__':
     plt.show()
     '''
 
-    print(metadata)
+    #print(metadata)
