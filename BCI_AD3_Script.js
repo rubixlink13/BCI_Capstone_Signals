@@ -19,7 +19,7 @@
 // ------------------------------------------------------------
 
 var fileName =
-    "C:/Users/mark/Desktop/BCI-CortexSignals/WaveGen/BCI_Capstone_Signals/positive_then_negative.csv";
+    "./positive_then_negative.csv";
 
 // Waveform period from Kenny's Python script.
 var period_ms = 5.0;
