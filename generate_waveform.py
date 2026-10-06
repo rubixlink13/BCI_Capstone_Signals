@@ -84,6 +84,97 @@ def generate_waveform(sample_rate, A1, A2, rise1, fall1, rise2, fall2, T, offset
     
     return t, y, sample_rate, metadata
 
+def generate_waveform_separated(sample_rate, A1, A2, rise1, fall1, rise2, fall2, T, offset,
+                             noise, noise_seed, waveform_type, test_case, spacing):
+    """
+    Generates a biphasic waveform with independent rise and fall times for both phases,
+    with an optional flat gap between the two spikes.
+ 
+    Each phase is constructed from two quarter-sine waves squared stitched together at the peak/trough.
+ 
+    spacing: time (same units as rise/fall/T/offset, i.e. ms) between the END of the
+             first spike (after fall1) and the START of the second spike (rise2).
+             spacing=0 reproduces the original generate_waveform behavior.
+ 
+    The time array is built internally from sample_rate and duration.
+ 
+    Returns: t, waveform, sample_rate, and metadata
+    """
+    if spacing < 0:
+        raise ValueError("spacing must be >= 0")
+ 
+    total_pulse = rise1 + fall1 + spacing + rise2 + fall2
+    
+ 
+    # 0. Build the time array from sample_rate and duration
+    t = np.arange(0, T, 1.0 / (sample_rate / 1000))
+ 
+    # 1. Apply the horizontal offset shift
+    shifted_t = t - offset
+ 
+    # 2. Take the modulus of the shifted time for periodicity
+    mod_t = np.mod(shifted_t, T)
+ 
+    # 3. Initialize the output array with zeros (also fills the spacing gap)
+    y = np.zeros_like(t)
+ 
+    # 4. Calculate absolute time boundaries for the pieces
+    t0 = 0.0
+    t1 = rise1                      # spike 1 peak
+    t2 = rise1 + fall1              # spike 1 end
+    t3 = t2 + spacing               # spike 2 start (after the gap)
+    t4 = t3 + rise2                 # spike 2 peak
+    t5 = t4 + fall2                 # spike 2 end
+ 
+    # 5. Create boolean masks for each segment
+    p1_rise = (mod_t >= t0) & (mod_t < t1)
+    p1_fall = (mod_t >= t1) & (mod_t < t2)
+    # t2 <= mod_t < t3 is the gap: stays at zero
+    p2_rise = (mod_t >= t3) & (mod_t < t4)
+    p2_fall = (mod_t >= t4) & (mod_t < t5)
+ 
+    # 6. Apply formulas (using quarter-sine transformations)
+    y[p1_rise] = A1 * np.sin((np.pi / 2) * (mod_t[p1_rise] / rise1)) ** 2
+    y[p1_fall] = A1 * np.cos((np.pi / 2) * ((mod_t[p1_fall] - t1) / fall1)) ** 2
+    y[p2_rise] = A2 * np.sin((np.pi / 2) * ((mod_t[p2_rise] - t3) / rise2)) ** 2
+    y[p2_fall] = A2 * np.cos((np.pi / 2) * ((mod_t[p2_fall] - t4) / fall2)) ** 2
+ 
+    if noise:
+        rng = random.Random(noise_seed)
+        for x in range(len(y)):
+            y[x] += (rng.random() * noise * 2 - noise)
+ 
+    # Generate metadata
+    metadata = {
+        "sample_rate_hz": sample_rate,
+        "duration_ms": T,
+ 
+        "baseline_uv": 0,
+ 
+        "spike1_amplitude_uv": A1,
+        "spike2_amplitude_uv": A2,
+ 
+        "spike1_start_ms": offset,
+        "spike1_end_ms": offset + rise1 + fall1,
+        "spacing_ms": spacing,
+        "spike2_start_ms": offset + rise1 + fall1 + spacing,
+        "spike2_end_ms": offset + total_pulse,
+ 
+        "rise_time_ms": rise1,
+        "peak_to_trough_time_ms": fall1 + spacing + rise2,
+        "recovery_time_ms": fall2,
+ 
+        "noise_rms_v": noise,
+        "random_seed": noise_seed,
+ 
+        "waveform_type": waveform_type,
+        "test_case": test_case,
+    }
+ 
+    export_waveform_csv(t, y, filename=test_case)
+ 
+    return t, y, sample_rate, metadata
+
 def export_waveform_csv(t, y, filename="waveform"):
     """
     Exports time and waveform arrays to a CSV file with headers 'time,amplitude'.
@@ -106,18 +197,23 @@ if __name__ == '__main__':
     rise2 = .250       
     fall2 = 1.000       
 
+    spacing = 1.000
+
     T = 5.0          # Total period in ms
     offset = 2.000      # Horizontal shift
 
     sample_rate = 1000000  # In Hz
 
     # Calculate the waveform amplitudes; t is now generated inside the function
-    t_values, waveform, sr, metadata = generate_waveform(
-        sample_rate, A1, A2, rise1, fall1, rise2, fall2, T, offset, 0, 1234, "biphasic", "positive_then_negative"
+    #t_values, waveform, sr, metadata = generate_waveform(
+    #    sample_rate, A1, A2, rise1, fall1, rise2, fall2, T, offset, 0, 1234, "biphasic", "positive_then_negative"
+    #)
+    t_values, waveform, sr, metadata = generate_waveform_separated(
+        sample_rate, A1, A2, rise1, fall1, rise2, fall2, T, offset, 0, 1234, "biphasic", "separated", spacing
     )
 
     # Comment out the ''' markers to show python generated plot
-    '''
+    #'''
     # --- Plotting with Matplotlib ---
     plt.figure(figsize=(10, 5))
     plt.plot(t_values, waveform, color='forestgreen', linewidth=2)
@@ -134,6 +230,6 @@ if __name__ == '__main__':
 
     # Display the plot
     plt.show()
-    '''
+    #'''
 
     #print(metadata)
