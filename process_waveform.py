@@ -98,5 +98,5 @@ def plot_array(filepath):
 
 if __name__ == '__main__':
     #print(convert_csv_to_array('positive_then_negative.csv'))
-    plot_array('noisy.csv')
     print(process_waveform('noisy.csv', 0, [50, 100, 200, 300, -50, -100, -200, -300]))
+    plot_array('noisy.csv')
