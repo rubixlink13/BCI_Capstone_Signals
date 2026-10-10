@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 def convert_csv_to_array(filepath, delimiter=",", skip_header=True, dtype=float):
     return np.genfromtxt(
@@ -71,10 +72,31 @@ def process_waveform(filepath, channel_id, thresholds):
 
     return channel_id, int(event_start * 1e3), peak_count, trough_count, int(time_to_peak * 1e3)
 
+def plot_array(filepath):
+    array = convert_csv_to_array(filepath)
+    t_values = [t[0] for t in array]
+    waveform = [t[1] for t in array]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(t_values, waveform, color='forestgreen', linewidth=2)
+
+    # Styling and labels
+    plt.title('Waveform', fontsize=13, fontweight='bold')
+    plt.xlabel('Time (t)', fontsize=12)
+    plt.ylabel('Amplitude', fontsize=12)
+    plt.axhline(0, color='black', linestyle='--', linewidth=0.8, alpha=0.7)  # Baseline reference
+    plt.grid(True, linestyle=':', alpha=0.6)
+    plt.xlim(0, max(t_values))
+    plt.ylim(min(waveform) - 0.5, max(waveform) + 0.5)
+    plt.legend(loc='upper right')
+
+    plt.show()
+
 
         
 
 
 if __name__ == '__main__':
     #print(convert_csv_to_array('positive_then_negative.csv'))
-    print(process_waveform('positive_then_negative.csv', 0, [50, 100, 200, 300, -50, -100, -200, -300]))
+    plot_array('noisy.csv')
+    print(process_waveform('noisy.csv', 0, [50, 100, 200, 300, -50, -100, -200, -300]))
