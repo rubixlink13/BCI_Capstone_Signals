@@ -16,6 +16,8 @@ def process_waveform(filepath, channel_id, thresholds):
     peak_count = 0
     trough_count = 0
 
+    quiet_time = 0
+
     is_peak = False
     is_trough = False
     #spike_started = False
@@ -29,35 +31,35 @@ def process_waveform(filepath, channel_id, thresholds):
 
     for t in waveform:
         if not is_peak and not is_trough:
-            if t[1] > thresholds[peak_count] and peak_count < 4:
+            if t[1] >= thresholds[peak_count] and peak_count < 4:
                 peak_count += 1
                 is_peak = True
                 highest_peak = t[0]
                 event_start = t[0]
 
-            if t[1] < thresholds[trough_count + 4] and trough_count < 4:
+            if t[1] <= thresholds[trough_count + 4] and trough_count < 4:
                 trough_count += 1
                 is_trough = True
                 highest_trough = t[0]
                 event_start = t[0]
 
         if is_peak and not is_trough:
-            if peak_count < 4 and t[1] > thresholds[peak_count]:
+            if peak_count < 4 and t[1] >= thresholds[peak_count]:
                 peak_count += 1
                 highest_peak = t[0]
 
-            if trough_count == 0 and t[1] < thresholds[trough_count + 4]:
+            if trough_count == 0 and t[1] <= thresholds[trough_count + 4]:
                 trough_count += 1
                 is_peak = False
                 is_trough = True
                 highest_trough = t[0]
 
         if is_trough and not is_peak:
-            if trough_count < 4 and t[1] < thresholds[trough_count + 4]:
+            if trough_count < 4 and t[1] <= thresholds[trough_count + 4]:
                 trough_count += 1
                 highest_trough = t[0]
 
-            if peak_count == 0 and t[1] > thresholds[peak_count]:
+            if peak_count == 0 and t[1] >= thresholds[peak_count]:
                 peak_count += 1
                 is_peak = True
                 is_trough = False
@@ -98,5 +100,5 @@ def plot_array(filepath):
 
 if __name__ == '__main__':
     #print(convert_csv_to_array('positive_then_negative.csv'))
-    print(process_waveform('noisy.csv', 0, [50, 100, 200, 300, -50, -100, -200, -300]))
-    plot_array('noisy.csv')
+    #print(process_waveform('noisy.csv', 0, [50, 100, 200, 300, -50, -100, -200, -300]))
+    plot_array('small_spike.csv')
