@@ -9,8 +9,8 @@ def convert_csv_to_array(filepath, delimiter=",", skip_header=True, dtype=float)
         dtype=dtype,
     )
 
-TIMEOUT_MS = 2.5  # no threshold crossed within this window -> timeout flag
-QUIET_MS = 0.5    # quiet (refractory) interval: signal between N1 and P1 for longer than this -> timeout flag
+TIMEOUT_MS = 2.5  # event timeout: no threshold crossed for this long between spikes -> timeout flag
+QUIET_MS = 0.5    # quiet/refractory interval: max gap between the two phases of a biphasic pulse -> timeout flag
 
 # Error flag order: [dropped_event, fifo_overflow, invalid_seq, overlap, timeout, saturation]
 FLAG_TIMEOUT = 4
@@ -18,13 +18,18 @@ FLAG_TIMEOUT = 4
 def process_waveform(filepath, channel_id, thresholds, timeout_ms=TIMEOUT_MS, quiet_ms=QUIET_MS):
     waveform = convert_csv_to_array(filepath)
     flags = [0, 0, 0, 0, 0, 0]
-    t_begin = waveform[0][0]  # timeout window is measured from the start of the capture
 
     # thresholds = [P1, P2, P3, P4, N1, N2, N3, N4]
     peak_count = 0
     trough_count = 0
 
-    quiet_start = None  # timestamp at which the current quiet stretch began (None = not quiet)
+    # Timeout tracking (flags only; independent of the peak/trough counting below).
+    # quiet = no threshold active (N1 < v < P1). The allowed length of a quiet stretch depends on where we are:
+    #   - waiting for first phase (start of capture, or after a completed pulse): timeout_ms (2.5 ms)
+    #   - between phase 1 and phase 2 of a biphasic pulse: quiet_ms (0.5 ms)
+    quiet_start = waveform[0][0]  # capture starts quiet; if the first sample is active this is reset below
+    pulse_phase = 0               # 0 = waiting for a pulse, 1 = phase 1 seen, 2 = opposite phase reached (pulse complete)
+    first_polarity = 0            # +1 / -1: polarity of phase 1
 
     is_peak = False
     is_trough = False
@@ -38,16 +43,24 @@ def process_waveform(filepath, channel_id, thresholds, timeout_ms=TIMEOUT_MS, qu
     highest_trough = -1
 
     for t in waveform:
-        # --- quiet interval: only tracked once an event has started (before that, the
-        # --- 2.5 ms timeout below applies). Quiet = no threshold active, N1 < v < P1.
-        if event_start >= 0:
-            if thresholds[4] < t[1] < thresholds[0]:
-                if quiet_start is None:
-                    quiet_start = t[0]
-                elif round(t[0] - quiet_start, 9) > quiet_ms:
-                    flags[FLAG_TIMEOUT] = 1
-            else:
-                quiet_start = None
+        # --- timeout flag tracking ---
+        v = t[1]
+        if thresholds[4] < v < thresholds[0]:  # quiet: no threshold active
+            if quiet_start is None:
+                quiet_start = t[0]
+                if pulse_phase == 2:         # phase 2 has ended -> pulse over, wait for the next one
+                    pulse_phase = 0
+            limit = quiet_ms if pulse_phase == 1 else timeout_ms
+            if round(t[0] - quiet_start, 9) > limit:
+                flags[FLAG_TIMEOUT] = 1
+        else:
+            quiet_start = None
+            polarity = 1 if v >= thresholds[0] else -1
+            if pulse_phase == 0:             # start of a new pulse
+                pulse_phase = 1
+                first_polarity = polarity
+            elif polarity != first_polarity:  # opposite phase reached -> biphasic pulse complete
+                pulse_phase = 2
 
         if not is_peak and not is_trough:
             if t[1] >= thresholds[peak_count] and peak_count < 4:
@@ -83,15 +96,6 @@ def process_waveform(filepath, channel_id, thresholds, timeout_ms=TIMEOUT_MS, qu
                 is_peak = True
                 is_trough = False
                 highest_peak = t[0]
-
-    # --- timeout: no threshold crossed within timeout_ms of the start of the capture ---
-    capture_end = waveform[-1][0]
-    if event_start < 0:
-        # never crossed; only a timeout if we actually observed the full window
-        if capture_end - t_begin >= timeout_ms:
-            flags[FLAG_TIMEOUT] = 1
-    elif event_start - t_begin > timeout_ms:
-        flags[FLAG_TIMEOUT] = 1
 
     if event_start < 0:
         # no event at all: nothing meaningful to report for timing
